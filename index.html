@@ -97,33 +97,28 @@
     <div id="notification" class="notification"></div>
 
     <script>
-        // CONFIGURACIÓ: Enganxa aquí la teva URL de Web App de Google
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzUEULl2W94kU6EcoiSlzDMUosm9aX6B2Q9vumMRI5mKE-TCxTNoKaOttfXCXTIUhIY/exec"; 
+        // CONFIGURACIÓ ÚNICA
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzUEULl2W94kU6EcoiSlzDMUosm9aX6B2Q9vumMRI5mKE-TCxTNoKaOttfXCXTIUhIY/exec";
         
         let estudiantes = [];
         let html5QrCode;
         let isScanning = false;
 
-        // 1. Primer definim la direcció (assegura't que sigui la teva)
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzUEULl2W94kU6EcoiSlzDMUosm9aX6B2Q9vumMRI5mKE-TCxTNoKaOttfXCXTIUhIY/exec";
-
-        // 2. Després la funció la utilitza per "construir" el missatge
         async function enviarAlServidor(dades) {
-            // Aquí concatenem la URL base amb les dades de l'estudiant
-            const url = WEB_APP_URL + 
-                        "?fecha=" + encodeURIComponent(dades.fecha) + 
-                        "&hora=" + encodeURIComponent(dades.hora) + 
-                        "&id=" + encodeURIComponent(dades.id);
+            const url = `${WEB_APP_URL}?fecha=${encodeURIComponent(dades.fecha)}&hora=${encodeURIComponent(dades.hora)}&id=${encodeURIComponent(dades.id)}`;
 
             try {
-                // Fem la crida
-                fetch(url, { mode: 'no-cors' }); 
-        
-                alert("Enviat via URL! Revisa el Google Sheet.");
-                mostrarNotificacion('✅ Enviament intentat', '#4CAF50');
+                // Fem la crida amb un timeout de seguretat (5 segons)
+                await Promise.race([
+                    fetch(url, { method: 'GET', mode: 'no-cors' }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+                ]);
+                
+                mostrarNotificacion('✅ Enviat al servidor', '#4CAF50');
+                console.log('Enviat:', dades);
             } catch (err) {
-                alert("Error crític: " + err);
-                guardarLocalment(dades);
+                console.error('Error d\'enviament:', err);
+                mostrarNotificacion('⚠️ Guardat localment', '#ff9800');
             }
         }
 

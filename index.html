@@ -163,26 +163,49 @@
             const laser = document.getElementById('laser');
 
             if (!isScanning) {
-                html5QrCode = new Html5Qrcode("reader");
+                // Creem la instància només si no existeix
+                if (!html5QrCode) {
+                    html5QrCode = new Html5Qrcode("reader");
+                }
+        
                 try {
+                    // Afegim un log per saber que ho estem intentant
+                    console.log("Iniciant càmera...");
+            
                     await html5QrCode.start(
                         { facingMode: "environment" },
-                        { fps: 10, qrbox: { width: 250, height: 250 } },
+                        { 
+                            fps: 10, 
+                            qrbox: { width: 250, height: 250 },
+                            aspectRatio: 1.0 
+                        },
                         onScanSuccess
                     );
+            
                     isScanning = true;
                     btn.innerHTML = "<span>🛑</span> Aturar Escàner";
                     btn.style.background = "#ff4444";
                     laser.style.display = "block";
+                    mostrarNotificacion('📷 Càmera activa', '#4CAF50');
+
                 } catch (err) {
-                    mostrarNotificacion("❌ Error en obrir la càmera", "red");
+                    console.error("Error càmera:", err);
+                    alert("Error de càmera: " + err); // Aquest alert ens dirà el motiu real
+                    isScanning = false;
                 }
             } else {
-                await html5QrCode.stop();
-                isScanning = false;
-                btn.innerHTML = "<span>📷</span> Iniciar Escàner";
-                btn.style.background = "#4CAF50";
-                laser.style.display = "none";
+                try {
+                    await html5QrCode.stop();
+                    isScanning = false;
+                    btn.innerHTML = "<span>📷</span> Iniciar Escàner";
+                    btn.style.background = "#4CAF50";
+                    laser.style.display = "none";
+                } catch (err) {
+                    console.error("Error al aturar:", err);
+                    // Si falla al aturar, forcem l'estat
+                    isScanning = false;
+                    location.reload(); // Recarreguem la pàgina com a últim recurs
+                }
             }
         }
 

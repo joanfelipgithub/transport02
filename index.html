@@ -104,23 +104,26 @@
         let html5QrCode;
         let isScanning = false;
 
+        // 1. Primer definim la direcció (assegura't que sigui la teva)
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzUEULl2W94kU6EcoiSlzDMUosm9aX6B2Q9vumMRI5mKE-TCxTNoKaOttfXCXTIUhIY/exec";
+
+        // 2. Després la funció la utilitza per "construir" el missatge
         async function enviarAlServidor(dades) {
-            alert("Pas 1: Iniciant enviament de " + dades.id);
-            if (WEB_APP_URL.includes("https://script.google.com/macros/s/AKfycbzUEULl2W94kU6EcoiSlzDMUosm9aX6B2Q9vumMRI5mKE-TCxTNoKaOttfXCXTIUhIY/exec")) return;
+            // Aquí concatenem la URL base amb les dades de l'estudiant
+            const url = WEB_APP_URL + 
+                        "?fecha=" + encodeURIComponent(dades.fecha) + 
+                        "&hora=" + encodeURIComponent(dades.hora) + 
+                        "&id=" + encodeURIComponent(dades.id);
+
             try {
-                // Enviament via POST a Google Apps Script
-                await fetch(WEB_APP_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    cache: 'no-cache',
-                    body: JSON.stringify(dades)
-                });
-                mostrarNotificacion('✅ Sincronitzat amb el núvol', '#4CAF50');
+                // Fem la crida
+                fetch(url, { mode: 'no-cors' }); 
+        
+                alert("Enviat via URL! Revisa el Google Sheet.");
+                mostrarNotificacion('✅ Enviament intentat', '#4CAF50');
             } catch (err) {
-                alert("Pas 3: Error de xarxa -> " + err);
-                console.error("Error de sincronització:", err);
-                alert("Error: " + err);
-                mostrarNotificacion('⚠️ Guardat localment (sense xarxa)', '#ff9800');
+                alert("Error crític: " + err);
+                guardarLocalment(dades);
             }
         }
 

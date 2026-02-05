@@ -117,6 +117,7 @@
                 mostrarNotificacion('✅ Sincronitzat amb el núvol', '#4CAF50');
             } catch (err) {
                 console.error("Error de sincronització:", err);
+                alert("Error: " + err);
                 mostrarNotificacion('⚠️ Guardat localment (sense xarxa)', '#ff9800');
             }
         }

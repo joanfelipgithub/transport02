@@ -1,0 +1,241 @@
+﻿<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Control Assistència">
+    <meta name="theme-color" content="#075e54">
+    <title>Control d'Assistència QR</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c 0%, #b21f1f 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header { padding: 20px; text-align: center; background: rgba(0,0,0,0.2); }
+        #reader { width: 100%; max-width: 500px; margin: 0 auto; background: black; position: relative; overflow: hidden; }
+        .scanner-container { position: relative; flex-shrink: 0; }
+        .laser {
+            height: 2px; background: red; position: absolute; width: 100%;
+            z-index: 10; top: 0; animation: scan 2s linear infinite;
+            box-shadow: 0 0 8px red; display: none;
+        }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        .stats-bar {
+            display: flex; justify-content: space-around; padding: 15px;
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+        }
+        .stat-card { text-align: center; flex: 1; }
+        .stat-value { font-size: 24px; font-weight: bold; }
+        .stat-label { font-size: 12px; opacity: 0.8; }
+        #lista-estudiantes {
+            flex-grow: 1; overflow-y: auto; padding: 10px;
+            background: rgba(255,255,255,0.05);
+        }
+        .estudiante-card {
+            background: white; color: #333; padding: 12px;
+            border-radius: 8px; margin-bottom: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .estudiante-info div:first-child { font-weight: bold; color: #1a2a6c; }
+        .estudiante-info div:last-child { font-size: 12px; color: #666; }
+        .controls { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button {
+            padding: 15px; border: none; border-radius: 12px;
+            font-weight: bold; font-size: 16px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-scan { background: #4CAF50; color: white; grid-column: span 2; }
+        .btn-export { background: #25D366; color: white; }
+        .btn-clear { background: #ff4444; color: white; }
+        .notification {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            padding: 15px 25px; border-radius: 25px; z-index: 1000;
+            display: none; animation: fadeInOut 3s ease-in-out;
+        }
+        @keyframes fadeInOut { 0%, 100% { opacity: 0; } 10%, 90% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <header><h1>Control d'Assistència</h1></header>
+
+    <div class="scanner-container">
+        <div id="reader"></div>
+        <div class="laser" id="laser"></div>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-value" id="count">0</div>
+            <div class="stat-label">Total Escanejats</div>
+        </div>
+    </div>
+
+    <div id="lista-estudiantes"></div>
+
+    <div class="controls">
+        <button id="btn-toggle" class="btn-scan" onclick="toggleScanner()">
+            <span>📷</span> Iniciar Escàner
+        </button>
+        <button class="btn-export" onclick="compartir()">
+            <span>📤</span> Compartir / Resum
+        </button>
+        <button class="btn-clear" onclick="confirmarNeteja()">
+            <span>🗑️</span> Netejar Llista
+        </button>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        // CONFIGURACIÓ: Enganxa aquí la teva URL de Web App de Google
+        const WEB_APP_URL = "LA_TEVA_URL_DE_DEPLOYMENT"; 
+        
+        let estudiantes = [];
+        let html5QrCode;
+        let isScanning = false;
+
+        async function enviarAlServidor(dades) {
+            if (WEB_APP_URL.includes("https://script.google.com/macros/s/AKfycbzUEULl2W94kU6EcoiSlzDMUosm9aX6B2Q9vumMRI5mKE-TCxTNoKaOttfXCXTIUhIY/exec")) return;
+            try {
+                // Enviament via POST a Google Apps Script
+                await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    body: JSON.stringify(dades)
+                });
+                mostrarNotificacion('✅ Sincronitzat amb el núvol', '#4CAF50');
+            } catch (err) {
+                console.error("Error de sincronització:", err);
+                mostrarNotificacion('⚠️ Guardat localment (sense xarxa)', '#ff9800');
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            if (!estudiantes.some(e => e.id === decodedText)) {
+                const ara = new Date();
+                const nouEstudiant = {
+                    fecha: ara.toLocaleDateString('ca-ES'),
+                    hora: ara.toLocaleTimeString('ca-ES'),
+                    id: decodedText
+                };
+                
+                estudiantes.unshift(nouEstudiant);
+                actualizarLista();
+                vibrar();
+                
+                // Enviament automàtic al servidor
+                enviarAlServidor(nouEstudiant);
+            } else {
+                mostrarNotificacion('🔁 Aquest ID ja ha estat escanejat', '#ff9800');
+            }
+        }
+
+        function actualizarLista() {
+            const lista = document.getElementById('lista-estudiantes');
+            const count = document.getElementById('count');
+            count.innerText = estudiantes.length;
+            
+            lista.innerHTML = estudiantes.map(e => `
+                <div class="estudiante-card">
+                    <div class="estudiante-info">
+                        <div>ID: ${e.id}</div>
+                        <div>${e.fecha} - ${e.hora}</div>
+                    </div>
+                    <div>✅</div>
+                </div>
+            `).join('');
+        }
+
+        async function toggleScanner() {
+            const btn = document.getElementById('btn-toggle');
+            const laser = document.getElementById('laser');
+
+            if (!isScanning) {
+                html5QrCode = new Html5Qrcode("reader");
+                try {
+                    await html5QrCode.start(
+                        { facingMode: "environment" },
+                        { fps: 10, qrbox: { width: 250, height: 250 } },
+                        onScanSuccess
+                    );
+                    isScanning = true;
+                    btn.innerHTML = "<span>🛑</span> Aturar Escàner";
+                    btn.style.background = "#ff4444";
+                    laser.style.display = "block";
+                } catch (err) {
+                    mostrarNotificacion("❌ Error en obrir la càmera", "red");
+                }
+            } else {
+                await html5QrCode.stop();
+                isScanning = false;
+                btn.innerHTML = "<span>📷</span> Iniciar Escàner";
+                btn.style.background = "#4CAF50";
+                laser.style.display = "none";
+            }
+        }
+
+        function compartir() {
+            if (estudiantes.length === 0) {
+                mostrarNotificacion('⚠️ La llista està buida', '#ff9800');
+                return;
+            }
+
+            const ara = new Date();
+            const nomArxiu = `assistencia_${ara.toISOString().slice(0,10)}.txt`;
+            let contingut = "DATA\tHORA\tID\n";
+            estudiantes.forEach(e => {
+                contingut += `${e.fecha}\t${e.hora}\t${e.id}\n`;
+            });
+
+            const resum = `📋 Assistència: ${estudiantes.length} total.`;
+
+            if (navigator.share) {
+                const arxiu = new File([contingut], nomArxiu, { type: 'text/plain' });
+                navigator.share({
+                    title: 'Registre d\'Assistència',
+                    text: resum,
+                    files: [arxiu]
+                }).catch(() => compartirWhatsApp(resum, contingut));
+            } else {
+                compartirWhatsApp(resum, contingut);
+            }
+        }
+
+        function compartirWhatsApp(resum, contingut) {
+            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(resum + '\n\n' + contingut)}`;
+            window.open(url, '_blank');
+        }
+
+        function confirmarNeteja() {
+            if (confirm('Estàs segur que vols esborrar tota la llista local?')) {
+                estudiantes = [];
+                actualizarLista();
+                mostrarNotificacion('🗑️ Llista buidada', '#333');
+            }
+        }
+
+        function mostrarNotificacion(msg, color) {
+            const notif = document.getElementById('notification');
+            notif.innerText = msg;
+            notif.style.background = color;
+            notif.style.display = 'block';
+            setTimeout(() => { notif.style.display = 'none'; }, 3000);
+        }
+
+        function vibrar() {
+            if (navigator.vibrate) navigator.vibrate(100);
+        }
+    </script>
+</body>
+</html>

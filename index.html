@@ -103,6 +103,7 @@
         let estudiantes = [];
         let html5QrCode;
         let isScanning = false;
+        let responsableNom = localStorage.getItem('responsableNom') || "";
 
         async function enviarAlServidor(dades) {
             const url = `${WEB_APP_URL}?fecha=${encodeURIComponent(dades.fecha)}&hora=${encodeURIComponent(dades.hora)}&id=${encodeURIComponent(dades.id)}`;
@@ -128,7 +129,8 @@
                 const nouEstudiant = {
                     fecha: ara.toLocaleDateString('ca-ES'),
                     hora: ara.toLocaleTimeString('ca-ES'),
-                    id: decodedText
+                    id: decodedText,
+                    responsable: responsableNom
                 };
                 
                 estudiantes.unshift(nouEstudiant);
@@ -217,9 +219,9 @@
 
             const ara = new Date();
             const nomArxiu = `assistencia_${ara.toISOString().slice(0,10)}.txt`;
-            let contingut = "DATA\tHORA\tID\n";
+            let contingut = `DATA\tHORA\tID\t${responsableNom}\n`;
             estudiantes.forEach(e => {
-                contingut += `${e.fecha}\t${e.hora}\t${e.id}\n`;
+                contingut += `${e.fecha}\t${e.hora}\t${e.id}\t${responsableNom}\n`;
             });
 
             const resum = `📋 Assistència: ${estudiantes.length} total.`;
@@ -257,9 +259,23 @@
             setTimeout(() => { notif.style.display = 'none'; }, 3000);
         }
 
+        function verificarIdentitat() {
+            if (!responsableNom) {
+                const nom = prompt("Introdueix el teu nom (Responsable):");
+                if (nom) {
+                    responsableNom = nom;
+                    localStorage.setItem('responsableNom', nom);
+                } else {
+                    responsableNom = "Sense nom";
+                }
+            }
+        }
+
         function vibrar() {
             if (navigator.vibrate) navigator.vibrate(100);
         }
+
+        verificarIdentitat();
     </script>
 </body>
 </html>
